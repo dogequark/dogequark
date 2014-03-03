@@ -1376,7 +1376,7 @@ void seed_insecure_rand(bool fDeterministic)
         insecure_rand_Rw = tmp;
     }
 }
-
+/*
 static const long hextable[] =
 {
     -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
@@ -1418,7 +1418,7 @@ long hex2long(const char* hexString)
 
     return ret;
 }
-
+*/
 
 string FormatVersion(int nVersion)
 {

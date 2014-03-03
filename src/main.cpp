@@ -2,7 +2,7 @@
 // Copyright (c) 2009-2013 The Bitcoin developers
 // Copyright (c) 2013 The Sifcoin developers
 // Copyright (c) 2013 The Quarkcoin developers
-// Copyright (c) 2013-2014 The DogeQuark Developers
+// Copyright (c) 2013-2014 The FairQuark Developers
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -18,8 +18,6 @@
 #include <boost/algorithm/string/replace.hpp>
 #include <boost/filesystem.hpp>
 #include <boost/filesystem/fstream.hpp>
-#include <boost/random/mersenne_twister.hpp>
-#include <boost/random/uniform_int.hpp>
 
 using namespace std;
 using namespace boost;
@@ -37,8 +35,8 @@ CTxMemPool mempool;
 unsigned int nTransactionsUpdated = 0;
 
 map<uint256, CBlockIndex*> mapBlockIndex;
-uint256 hashGenesisBlock("0x00000ab596924f088d5efece371794d47feb5d66912ec0b79eca5a8e36b1e1f1");
-static const unsigned int timeGenesisBlock = 1393854850;
+uint256 hashGenesisBlock("0x0000072f0936c84bf7eabffbda0dc6771255ebb71a30759f12ba9b1adafaee15");
+static const unsigned int timeGenesisBlock = 1393869930;
 static CBigNum bnProofOfWorkLimit(~uint256(0) >> 20);
 CBlockIndex* pindexGenesisBlock = NULL;
 int nBestHeight = -1;
@@ -54,8 +52,6 @@ bool fReindex = false;
 bool fBenchmark = false;
 bool fTxIndex = false;
 unsigned int nCoinCacheSize = 5000;
-uint256 prevHash = 0;
-
 
 /** Fees smaller than this (in satoshi) are considered zero fee (for transaction creation) */
 int64 CTransaction::nMinTxFee = 10;  // Override with -mintxfee
@@ -73,7 +69,7 @@ map<uint256, map<uint256, CDataStream*> > mapOrphanTransactionsByPrev;
 // Constant stuff for coinbase transactions we create:
 CScript COINBASE_FLAGS;
 
-const string strMessageMagic = "DogeQuark Signed Message:\n";
+const string strMessageMagic = "FairQuark Signed Message:\n";
 
 double dHashesPerSec = 0.0;
 int64 nHPSTimerStart = 0;
@@ -1073,6 +1069,14 @@ bool CBlock::ReadFromDisk(const CBlockIndex* pindex)
     return true;
 }
 
+int getrandint(int min, int max)   
+{   
+    int num;   
+    num=rand();   
+    num=num%(max-min+1)+min;   
+    return num;   
+} 
+
 uint256 static GetOrphanRoot(const CBlockHeader* pblock)
 {
     // Work back to the first block in the orphan chain
@@ -1081,86 +1085,60 @@ uint256 static GetOrphanRoot(const CBlockHeader* pblock)
     return pblock->GetHash();
 }
 
-int static generateMTRandom(unsigned int s, int range)
-{
-    boost::mt19937 gen(s);
-    boost::uniform_int<> dist(1, range);
-    return dist(gen);
-}
-
-
 static const int64 nGenesisBlockRewardCoin = 1 * COIN;
-//static const int64 nBlockRewardStartCoin = 2048 * COIN;
-//static const int64 nBlockRewardMinimumCoin = 1 * COIN;
+static const int64 nBlockRewardStartCoin = 100 * COIN;
+static const int64 nBlockRewardMinimumCoin = 1 * COIN;
 
-static const int64 nTargetTimespan = 4 * 60 * 60; // Every 4 hrs
+static const int64 nTargetTimespan = 60 * 60 * 4; // 4 Hrs
 static const int64 nTargetSpacing = 60; // 60 seconds
 static const int64 nInterval = nTargetTimespan / nTargetSpacing; // 20 blocks
 
-int64 static GetBlockValue(int nHeight, int64 nFees, unsigned int nBits, uint256 prevHash)
+int64 static GetBlockValue(int nHeight, int64 nFees, unsigned int nBits)
 {
+    if (nHeight == 0)
+    {
+        return nGenesisBlockRewardCoin;
+    }
+
+   unsigned int i, iMax, iMin;
+   
+    
+   iMin = 1;
+   iMax = 50;
+
+if(nHeight<500)
+{
+iMax = 3;
+}
+if(nHeight > 8000)
+{
+iMax = 30;
+}
+if(nHeight > 20000)
+{
+iMax = 20;
+}
+if(nHeight > 100000)
+{
+iMax = 10;
+}
+
+   
+    i = getrandint(iMin, iMax);
+    int64 nSubsidy = nBlockRewardStartCoin * i ;
 
 
-int64 nSubsidy = 10000 * COIN;
 
-    std::string cseed_str = prevHash.ToString().substr(7,7);
-    const char* cseed = cseed_str.c_str();
-    long seed = hex2long(cseed);
-    int rand = generateMTRandom(seed, 999999);
-    int rand1 = 0;
-    int rand2 = 0;
-    int rand3 = 0;
-    int rand4 = 0;
-    int rand5 = 0;
-
-    if(nHeight < 100000)
+    // Subsidy is cut in half every 60480 blocks (21 days)
+    //nSubsidy >>= (nHeight / 60480);
+    
+    // Minimum subsidy
+    if (nSubsidy < nBlockRewardMinimumCoin)
     {
-        nSubsidy = (1 + rand) * COIN;
-    }
-    else if(nHeight < 200000)
-    {
-        cseed_str = prevHash.ToString().substr(7,7);
-        cseed = cseed_str.c_str();
-        seed = hex2long(cseed);
-        rand1 = generateMTRandom(seed, 499999);
-        nSubsidy = (1 + rand1) * COIN;
-    }
-    else if(nHeight < 300000)
-    {
-        cseed_str = prevHash.ToString().substr(6,7);
-        cseed = cseed_str.c_str();
-        seed = hex2long(cseed);
-        rand2 = generateMTRandom(seed, 249999);
-        nSubsidy = (1 + rand2) * COIN;
-    }
-    else if(nHeight < 400000)
-    {
-        cseed_str = prevHash.ToString().substr(7,7);
-        cseed = cseed_str.c_str();
-        seed = hex2long(cseed);
-        rand3 = generateMTRandom(seed, 124999);
-        nSubsidy = (1 + rand3) * COIN;
-    }
-    else if(nHeight < 500000)
-    {
-        cseed_str = prevHash.ToString().substr(7,7);
-        cseed = cseed_str.c_str();
-        seed = hex2long(cseed);
-        rand4 = generateMTRandom(seed, 62499);
-        nSubsidy = (1 + rand4) * COIN;
-    }
-    else if(nHeight < 600000)
-    {
-        cseed_str = prevHash.ToString().substr(6,7);
-        cseed = cseed_str.c_str();
-        seed = hex2long(cseed);
-        rand5 = generateMTRandom(seed, 31249);
-        nSubsidy = (1 + rand5) * COIN;
+        nSubsidy = nBlockRewardMinimumCoin;
     }
 
     return nSubsidy + nFees;
-
-
 }
 
 //
@@ -1776,14 +1754,8 @@ bool CBlock::ConnectBlock(CValidationState &state, CBlockIndex* pindex, CCoinsVi
     if (fBenchmark)
         printf("- Connect %u transactions: %.2fms (%.3fms/tx, %.3fms/txin)\n", (unsigned)vtx.size(), 0.001 * nTime, 0.001 * nTime / vtx.size(), nInputs <= 1 ? 0 : 0.001 * nTime / (nInputs-1));
 
-//uint256 prevHash = 0;
-    if(pindex->pprev)
-    {
-        prevHash = pindex->pprev->GetBlockHash();
-    }
-
-    if (vtx[0].GetValueOut() > GetBlockValue(pindex->nHeight, nFees, pindex->nBits, prevHash))
-        return state.DoS(100, error("ConnectBlock() : coinbase pays too much (actual=%"PRI64d" vs limit=%"PRI64d")", vtx[0].GetValueOut(), GetBlockValue(pindex->nHeight, nFees, pindex->nBits, prevHash)));
+    if (vtx[0].GetValueOut() > GetBlockValue(pindex->nHeight, nFees, pindex->nBits))
+        return state.DoS(100, error("ConnectBlock() : coinbase pays too much (actual=%"PRI64d" vs limit=%"PRI64d")", vtx[0].GetValueOut(), GetBlockValue(pindex->nHeight, nFees, pindex->nBits)));
 
     if (!control.Wait())
         return state.DoS(100, false);
@@ -2852,7 +2824,7 @@ CBlock(hash=00000e5e37c42d6b67d0934399adfb0fa48b59138abb1a8842c88f4ca3d4ec96, ve
 */
 
         // Genesis block
-        const char* pszTimestamp = "3rd March 2014 Gold Climbs as Russian Seizure of Crimea Increases Haven Demand";
+        const char* pszTimestamp = "US Stocks Fall Amid Global Equities Selloff on Ukraine Mar 4 2014";
         CTransaction txNew;
         txNew.vin.resize(1);
         txNew.vout.resize(1);
@@ -2866,12 +2838,12 @@ CBlock(hash=00000e5e37c42d6b67d0934399adfb0fa48b59138abb1a8842c88f4ca3d4ec96, ve
         block.nVersion = 112;
         block.nTime    = timeGenesisBlock;
         block.nBits    = bnProofOfWorkLimit.GetCompact();
-        block.nNonce   = 53125;
+        block.nNonce   = 0;
 
         if (fTestNet)
         {
             block.nTime    = 1386926966;
-            block.nNonce   = 53125;
+            block.nNonce   = 0;
         }
 
         //// debug print
@@ -2885,7 +2857,7 @@ CBlock(hash=00000e5e37c42d6b67d0934399adfb0fa48b59138abb1a8842c88f4ca3d4ec96, ve
         printf("%s\n", hashGenesisBlock.ToString().c_str());
         printf("%s\n", block.hashMerkleRoot.ToString().c_str());
         block.print();
-        assert(block.hashMerkleRoot == uint256("0xf10f253a742ca44f73e7999423d6039a597a9e5f2ecd6e90011e1107ac7a3c84"));
+        assert(block.hashMerkleRoot == uint256("0x81f183c45f459a4a10ac59e3525ffda68f209f708eeb6b8fe5342033cf385f44"));
         assert(hash == hashGenesisBlock);
 
         // Start new block file
@@ -4513,7 +4485,7 @@ CBlockTemplate* CreateNewBlock(CReserveKey& reservekey)
         pblock->nNonce         = 0;
 
         // Calculate nVvalue dependet nBits
-        pblock->vtx[0].vout[0].nValue = GetBlockValue(pindexPrev->nHeight+1, nFees, pblock->nBits, prevHash);
+        pblock->vtx[0].vout[0].nValue = GetBlockValue(pindexPrev->nHeight+1, nFees, pblock->nBits);
         pblocktemplate->vTxFees[0] = -nFees;
 
         pblock->vtx[0].vin[0].scriptSig = CScript() << OP_0 << OP_0;
@@ -4605,7 +4577,7 @@ bool CheckWork(CBlock* pblock, CWallet& wallet, CReserveKey& reservekey)
         return false;
 
     //// debug print
-    printf("DogeQuarkMiner:\n");
+    printf("FairQuarkMiner:\n");
     printf("proof-of-work found  \n  hash: %s  \ntarget: %s\n", hash.GetHex().c_str(), hashTarget.GetHex().c_str());
     pblock->print();
     printf("generated %s\n", FormatMoney(pblock->vtx[0].vout[0].nValue).c_str());
@@ -4614,7 +4586,7 @@ bool CheckWork(CBlock* pblock, CWallet& wallet, CReserveKey& reservekey)
     {
         LOCK(cs_main);
         if (pblock->hashPrevBlock != hashBestChain)
-            return error("DogeQuarkMiner : generated block is stale");
+            return error("FairQuarkMiner : generated block is stale");
 
         // Remove key from key pool
         reservekey.KeepKey();
@@ -4628,7 +4600,7 @@ bool CheckWork(CBlock* pblock, CWallet& wallet, CReserveKey& reservekey)
         // Process this block the same as if we had received it from another node
         CValidationState state;
         if (!ProcessBlock(state, NULL, pblock))
-            return error("DogeQuarkMiner : ProcessBlock, block not accepted");
+            return error("FairQuarkMiner : ProcessBlock, block not accepted");
     }
 
     return true;
@@ -4636,9 +4608,9 @@ bool CheckWork(CBlock* pblock, CWallet& wallet, CReserveKey& reservekey)
 
 void static BitcoinMiner(CWallet *pwallet)
 {
-    printf("DogeQuarkMiner started\n");
+    printf("FairQuarkMiner started\n");
     SetThreadPriority(THREAD_PRIORITY_LOWEST);
-    RenameThread("DogeQuark-miner");
+    RenameThread("fairquark-miner");
 
     // Each thread has its own key and counter
     CReserveKey reservekey(pwallet);
@@ -4662,7 +4634,7 @@ void static BitcoinMiner(CWallet *pwallet)
         CBlock *pblock = &pblocktemplate->block;
         IncrementExtraNonce(pblock, pindexPrev, nExtraNonce);
 
-        printf("Running DogeQuarkMiner with %"PRIszu" transactions in block (%u bytes)\n", pblock->vtx.size(),
+        printf("Running FairQuarkMiner with %"PRIszu" transactions in block (%u bytes)\n", pblock->vtx.size(),
                ::GetSerializeSize(*pblock, SER_NETWORK, PROTOCOL_VERSION));
 
         //
@@ -4766,7 +4738,7 @@ void static BitcoinMiner(CWallet *pwallet)
     } }
     catch (boost::thread_interrupted)
     {
-        printf("DogeQuarkMiner terminated\n");
+        printf("FairQuarkMiner terminated\n");
         throw;
     }
 }
