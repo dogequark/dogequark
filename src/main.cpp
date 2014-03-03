@@ -18,6 +18,8 @@
 #include <boost/algorithm/string/replace.hpp>
 #include <boost/filesystem.hpp>
 #include <boost/filesystem/fstream.hpp>
+#include <boost/random/mersenne_twister.hpp>
+#include <boost/random/uniform_int.hpp>
 
 using namespace std;
 using namespace boost;
@@ -52,6 +54,8 @@ bool fReindex = false;
 bool fBenchmark = false;
 bool fTxIndex = false;
 unsigned int nCoinCacheSize = 5000;
+uint256 prevHash = 0;
+
 
 /** Fees smaller than this (in satoshi) are considered zero fee (for transaction creation) */
 int64 CTransaction::nMinTxFee = 10;  // Override with -mintxfee
@@ -1077,33 +1081,86 @@ uint256 static GetOrphanRoot(const CBlockHeader* pblock)
     return pblock->GetHash();
 }
 
-static const int64 nGenesisBlockRewardCoin = 1 * COIN;
-static const int64 nBlockRewardStartCoin = 2048 * COIN;
-static const int64 nBlockRewardMinimumCoin = 1 * COIN;
+int static generateMTRandom(unsigned int s, int range)
+{
+    boost::mt19937 gen(s);
+    boost::uniform_int<> dist(1, range);
+    return dist(gen);
+}
 
-static const int64 nTargetTimespan = 60 * 60; // 60 minutes
+
+static const int64 nGenesisBlockRewardCoin = 1 * COIN;
+//static const int64 nBlockRewardStartCoin = 2048 * COIN;
+//static const int64 nBlockRewardMinimumCoin = 1 * COIN;
+
+static const int64 nTargetTimespan = 4 * 60 * 60; // Every 4 hrs
 static const int64 nTargetSpacing = 60; // 60 seconds
 static const int64 nInterval = nTargetTimespan / nTargetSpacing; // 20 blocks
 
-int64 static GetBlockValue(int nHeight, int64 nFees, unsigned int nBits)
+int64 static GetBlockValue(int nHeight, int64 nFees, unsigned int nBits, uint256 prevHash)
 {
-    if (nHeight == 0)
-    {
-        return nGenesisBlockRewardCoin;
-    }
-    
-    int64 nSubsidy = nBlockRewardStartCoin;
 
-    // Subsidy is cut in half every 60480 blocks (21 days)
-    nSubsidy >>= (nHeight / 60480);
-    
-    // Minimum subsidy
-    if (nSubsidy < nBlockRewardMinimumCoin)
+
+int64 nSubsidy = 10000 * COIN;
+
+    std::string cseed_str = prevHash.ToString().substr(7,7);
+    const char* cseed = cseed_str.c_str();
+    long seed = hex2long(cseed);
+    int rand = generateMTRandom(seed, 999999);
+    int rand1 = 0;
+    int rand2 = 0;
+    int rand3 = 0;
+    int rand4 = 0;
+    int rand5 = 0;
+
+    if(nHeight < 100000)
     {
-        nSubsidy = nBlockRewardMinimumCoin;
+        nSubsidy = (1 + rand) * COIN;
+    }
+    else if(nHeight < 200000)
+    {
+        cseed_str = prevHash.ToString().substr(7,7);
+        cseed = cseed_str.c_str();
+        seed = hex2long(cseed);
+        rand1 = generateMTRandom(seed, 499999);
+        nSubsidy = (1 + rand1) * COIN;
+    }
+    else if(nHeight < 300000)
+    {
+        cseed_str = prevHash.ToString().substr(6,7);
+        cseed = cseed_str.c_str();
+        seed = hex2long(cseed);
+        rand2 = generateMTRandom(seed, 249999);
+        nSubsidy = (1 + rand2) * COIN;
+    }
+    else if(nHeight < 400000)
+    {
+        cseed_str = prevHash.ToString().substr(7,7);
+        cseed = cseed_str.c_str();
+        seed = hex2long(cseed);
+        rand3 = generateMTRandom(seed, 124999);
+        nSubsidy = (1 + rand3) * COIN;
+    }
+    else if(nHeight < 500000)
+    {
+        cseed_str = prevHash.ToString().substr(7,7);
+        cseed = cseed_str.c_str();
+        seed = hex2long(cseed);
+        rand4 = generateMTRandom(seed, 62499);
+        nSubsidy = (1 + rand4) * COIN;
+    }
+    else if(nHeight < 600000)
+    {
+        cseed_str = prevHash.ToString().substr(6,7);
+        cseed = cseed_str.c_str();
+        seed = hex2long(cseed);
+        rand5 = generateMTRandom(seed, 31249);
+        nSubsidy = (1 + rand5) * COIN;
     }
 
     return nSubsidy + nFees;
+
+
 }
 
 //
@@ -1719,8 +1776,14 @@ bool CBlock::ConnectBlock(CValidationState &state, CBlockIndex* pindex, CCoinsVi
     if (fBenchmark)
         printf("- Connect %u transactions: %.2fms (%.3fms/tx, %.3fms/txin)\n", (unsigned)vtx.size(), 0.001 * nTime, 0.001 * nTime / vtx.size(), nInputs <= 1 ? 0 : 0.001 * nTime / (nInputs-1));
 
-    if (vtx[0].GetValueOut() > GetBlockValue(pindex->nHeight, nFees, pindex->nBits))
-        return state.DoS(100, error("ConnectBlock() : coinbase pays too much (actual=%"PRI64d" vs limit=%"PRI64d")", vtx[0].GetValueOut(), GetBlockValue(pindex->nHeight, nFees, pindex->nBits)));
+//uint256 prevHash = 0;
+    if(pindex->pprev)
+    {
+        prevHash = pindex->pprev->GetBlockHash();
+    }
+
+    if (vtx[0].GetValueOut() > GetBlockValue(pindex->nHeight, nFees, pindex->nBits, prevHash))
+        return state.DoS(100, error("ConnectBlock() : coinbase pays too much (actual=%"PRI64d" vs limit=%"PRI64d")", vtx[0].GetValueOut(), GetBlockValue(pindex->nHeight, nFees, pindex->nBits, prevHash)));
 
     if (!control.Wait())
         return state.DoS(100, false);
@@ -4450,7 +4513,7 @@ CBlockTemplate* CreateNewBlock(CReserveKey& reservekey)
         pblock->nNonce         = 0;
 
         // Calculate nVvalue dependet nBits
-        pblock->vtx[0].vout[0].nValue = GetBlockValue(pindexPrev->nHeight+1, nFees, pblock->nBits);
+        pblock->vtx[0].vout[0].nValue = GetBlockValue(pindexPrev->nHeight+1, nFees, pblock->nBits, prevHash);
         pblocktemplate->vTxFees[0] = -nFees;
 
         pblock->vtx[0].vin[0].scriptSig = CScript() << OP_0 << OP_0;
