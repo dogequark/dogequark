@@ -35,7 +35,7 @@ CTxMemPool mempool;
 unsigned int nTransactionsUpdated = 0;
 
 map<uint256, CBlockIndex*> mapBlockIndex;
-uint256 hashGenesisBlock("0x0000041b99f40c4127fd55c70431d4e76a685215d4a1c7b0acb30deaa7aa9889");
+uint256 hashGenesisBlock("0x00000ab596924f088d5efece371794d47feb5d66912ec0b79eca5a8e36b1e1f1");
 static const unsigned int timeGenesisBlock = 1393854850;
 static CBigNum bnProofOfWorkLimit(~uint256(0) >> 20);
 CBlockIndex* pindexGenesisBlock = NULL;
