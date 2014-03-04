@@ -1093,6 +1093,11 @@ static const int64 nTargetTimespan = 60 * 60 * 4; // 4 Hrs
 static const int64 nTargetSpacing = 60; // 60 seconds
 static const int64 nInterval = nTargetTimespan / nTargetSpacing; // 20 blocks
 
+static const unsigned int nMaxCoinInt = 5000;
+int64 nMaxCoinPerBlock = nMaxCoinInt * COIN;
+
+
+
 int64 static GetBlockValue(int nHeight, int64 nFees, unsigned int nBits)
 {
     if (nHeight == 0)
@@ -1754,8 +1759,8 @@ bool CBlock::ConnectBlock(CValidationState &state, CBlockIndex* pindex, CCoinsVi
     if (fBenchmark)
         printf("- Connect %u transactions: %.2fms (%.3fms/tx, %.3fms/txin)\n", (unsigned)vtx.size(), 0.001 * nTime, 0.001 * nTime / vtx.size(), nInputs <= 1 ? 0 : 0.001 * nTime / (nInputs-1));
 
-    if (vtx[0].GetValueOut() > GetBlockValue(pindex->nHeight, nFees, pindex->nBits))
-        return state.DoS(100, error("ConnectBlock() : coinbase pays too much (actual=%"PRI64d" vs limit=%"PRI64d")", vtx[0].GetValueOut(), GetBlockValue(pindex->nHeight, nFees, pindex->nBits)));
+    	if (vtx[0].GetValueOut() > nMaxCoinPerBlock)
+        return state.DoS(100, error("ConnectBlock() : coinbase pays too much (actual=%"PRI64d" vs limit=%"PRI64d")", vtx[0].GetValueOut(), nMaxCoinPerBlock));
 
     if (!control.Wait())
         return state.DoS(100, false);
